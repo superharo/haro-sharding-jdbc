@@ -1,0 +1,71 @@
+server:
+  port: 8090
+spring:
+  application:
+    name: haro-sharding-jdbc
+  # ShardingSphere 配置项
+  shardingsphere:
+    datasource:
+      # 所有数据源的名字 不能用特俗字符 _
+      names: db-0, db-1
+      # 数据源配置 00
+      db-0:
+        type: com.zaxxer.hikari.HikariDataSource # 使用 Hikari 数据库连接池
+        driver-class-name: com.mysql.jdbc.Driver
+        jdbc-url: jdbc:mysql://10.0.0.8:3306/db-0?useSSL=false&useUnicode=true&characterEncoding=UTF-8
+        username: root
+        password: root
+      # 数据源配置 01
+      db-1:
+        type: com.zaxxer.hikari.HikariDataSource # 使用 Hikari 数据库连接池
+        driver-class-name: com.mysql.jdbc.Driver
+        jdbc-url: jdbc:mysql://10.0.0.8:3306/db-1?useSSL=false&useUnicode=true&characterEncoding=UTF-8
+        username: root
+        password: root
+    # 分片规则
+    sharding:
+      tables:
+        # orders 表配置
+        orders:
+          actualDataNodes: db-0.orders_$->{[0,2,4,6]}, db-1.orders_$->{[1,3,5,7]} # 映射到 db-0 和 db-1 数据源的 orders 表们
+          key-generator: # 主键生成策略
+            column: id
+            type: SNOWFLAKE
+          database-strategy:
+            inline:
+              algorithm-expression: db-$->{user_id % 2}
+              sharding-column: user_id
+          table-strategy:
+            inline:
+              algorithm-expression: orders_$->{user_id % 8}
+              sharding-column: user_id
+        # order_config 表配置
+        order_config:
+          actualDataNodes: db-0.order_config # 仅映射到 ds-orders-0 数据源的 order_config 表
+    # 拓展属性配置
+    props:
+      sql:
+        show: true # 打印 SQL
+
+
+##mybatis-plus设置
+mybatis-plus:
+  configuration:
+#    #打印sql日志
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+     map-underscore-to-camel-case: true # 虽然默认为 true ，但是还是显示去指定下。
+  global-config:
+    db-config:
+      id-type: none # 虽然 MyBatis Plus 也提供 ID 生成策略，但是还是使用 Sharding-JDBC 的
+      logic-delete-value: 1 # 逻辑已删除值(默认为 1)
+      logic-not-delete-value: 0 # 逻辑未删除值(默认为 0)
+  #指定映射文件路径,默认classpath*:/mapper/**/*.xml
+  mapper-locations: classpath*:/mapper/**/*.xml
+  #设置类型别名
+  type-aliases-package: online.superh.haro.sharding.pojo
+
+# mybatis 配置内容
+#mybatis:
+#  config-location: classpath:mybatis-config.xml # 配置 MyBatis 配置文件路径
+#  mapper-locations: classpath*:/mapper/**/*.xml # 配置 Mapper XML 地址
+#  type-aliases-package: online.superh.haro.sharding.pojo # 配置数据库实体包路径
